@@ -69,7 +69,6 @@ function domain_relationships_form_alter(&$form, $form_state, $form_id) {
           }
           $form['domain_vis_settings']['domain_blocks']['#options'] = $tree_options;
         }
-
         break;
       // Displays domains in correct order on the user edit form
       case 'user_profile_form':
@@ -86,7 +85,7 @@ function domain_relationships_domainupdate($op, $domain, $edit = array()) {
   switch ($op) {
     case 'delete':
       _domain_relationships_set_default_parent($domain);
-    break;
+      break;
   }
 }
 
@@ -95,57 +94,55 @@ function domain_relationships_domainupdate($op, $domain, $edit = array()) {
  * and indented list based on the domain hierarchy.
  */
 function domain_relationships_show_domain_hierarchy(&$form, $form_element, $form_element_selected) {
-  $allowed_domains = array();
+  $element = $form[$form_element][$form_element_selected];
   // Loop through the original form to determine the domains this user has access to
-  if (is_array($form[$form_element][$form_element_selected]['#options'])) {
-    foreach ($form[$form_element][$form_element_selected]['#options'] as $allowed_option_key => $allowed_option_value) {
+  if (is_array($element['#options'])) {
+    $allowed_domains = array();
+    foreach ($element['#options'] as $allowed_option_key => $allowed_option_value) {
       $allowed_domains[] = $allowed_option_key;
     }
-    $selected_domains = implode($allowed_domains, ',');
-    $sql = "SELECT domain_id, sitename, sloc FROM {domain} WHERE domain_id IN (%s) ORDER BY sloc";
-    $result = db_query($sql, $selected_domains);
+    $placeholders = db_placeholders($allowed_domains);
+    $result = db_query("SELECT domain_id, sitename, sloc FROM {domain} WHERE domain_id IN ($placeholders) ORDER BY sloc", $allowed_domains);
     // Output according to their structural location but keep default domain 'as is' if in original list.
     if (in_array(-1, $allowed_domains)) {
-      $default_option = $form[$form_element][$form_element_selected]['#options'][-1];
-      $form[$form_element][$form_element_selected]['#options'] = array();
-      $form[$form_element][$form_element_selected]['#options'][-1] = $default_option;
+      $default_option = $element['#options'][-1];
+      $element['#options'] = array();
+      $element['#options'][-1] = $default_option;
     }
     else {
       $form[$form_element][$form_element_selected]['#options'] = array();
     }
     while ($data = db_fetch_object($result)) {
-      $form[$form_element][$form_element_selected]['#options'][$data->domain_id] = theme('domain_relationships_domain_display_list', $data->sitename, drupal_strlen($data->sloc));
+      $element['#options'][$data->domain_id] = theme('domain_relationships_domain_display_list', $data->sitename, drupal_strlen($data->sloc));
     }
+    $form[$form_element][$form_element_selected] = $element;
   }
 }
 
 
 /**
  * Submit handler for domain form
- *
  */
 function domain_relationships_domain_form_submit($form, $form_state) {
   // Updating an existing domain or inserting a new record
   if (!empty($form_state['values']['domain_id'])) {
+    $domain_parent = $form_state['values']['parent'] == 1 ? -1 : $form_state['values']['parent'];
     // If there is a record for current domain in the DB update its records, otherwise attempt to create it
     $check = db_result(db_query("SELECT COUNT(domain_id) FROM {domain} WHERE domain_id = %d", $form_state['values']['domain_id']));
-    $domain_parent = $form_state['values']['parent'] == 1 ? -1 : $form_state['values']['parent'];
     if ($check > 0) {
-      $sql = "UPDATE {domain} SET parent = %d WHERE domain_id = %d";
-      db_query($sql, $domain_parent, $form_state['values']['domain_id']);
+      db_query("UPDATE {domain} SET parent = %d WHERE domain_id = %d", $domain_parent, $form_state['values']['domain_id']);
     }
     else {
-      $sql = "INSERT INTO {domain} (domain_id, parent) VALUES (%d, %d)";
-      db_query($sql, $domain_parent, $form_state['values']['domain_id']);
+      db_query("INSERT INTO {domain} (domain_id, parent) VALUES (%d, %d)", $domain_parent, $form_state['values']['domain_id']);
     }
   }
   else {
-    $check_domain_exists = db_fetch_array(db_query("SELECT domain_id FROM {domain} WHERE subdomain= %b", $form_state['values']['subdomain']));
+    //TODO: Should it really be %b here?
+    $check_domain_exists = db_fetch_array(db_query("SELECT domain_id FROM {domain} WHERE subdomain = %b", $form_state['values']['subdomain']));
     if (is_array($check_domain_exists)) {
       $created_domain = $check_domain_exists['domain_id'];
       $domain_parent = $form_state['values']['parent'] == 1 ? -1 : $form_state['values']['parent'];
-      $sql = "UPDATE {domain} SET parent = %d WHERE domain_id = %d";
-      db_query($sql, $domain_parent, $created_domain);
+      db_query("UPDATE {domain} SET parent = %d WHERE domain_id = %d", $domain_parent, $created_domain);
     }
   }
   recalculate_domain_slocs();
@@ -153,7 +150,6 @@ function domain_relationships_domain_form_submit($form, $form_state) {
 
 /**
  * Helper datatype class for processing of domain relationships tree
- *
  */
 class domain_relationships_tree_datatype {
   public $id;
@@ -164,11 +160,9 @@ class domain_relationships_tree_datatype {
 
 /**
  * Recalculate and update domain sloc based on parent and alphabetical order
- *
  */
 function recalculate_domain_slocs() {
-  $sql = "SELECT domain_id, sitename, parent FROM {domain}";
-  $result = db_query($sql);
+  $result = db_query("SELECT domain_id, sitename, parent FROM {domain}");
 
   // Capture in an array of objects for ease of processing.
   $domain_array = array();
@@ -206,7 +200,9 @@ function recalculate_domain_slocs() {
           // Check parent has a sloc; if so get parent's sloc value
           $parent_sloc = '';
           foreach ($domain_array as $da) {
-            if ($da->id == $d->parent) $parent_sloc = $da->sloc;
+            if ($da->id == $d->parent) {
+              $parent_sloc = $da->sloc;
+            }
           }
           if ($parent_sloc) {
             $parent = $d->parent;
@@ -285,9 +281,8 @@ function domain_relationships_domain_children($domain_id) {
 function _domain_relationships_set_default_parent($domain_id) {
   $children = domain_relationships_domain_children($domain_id);
   if (!empty($children)) {
-  $child_list = implode($children, ',');
-    $sql = "UPDATE {domain} SET parent = %d WHERE domain_id IN (%s)";
-    db_query($sql, 0, $child_list);
+    $placeholders = db_placeholders($children);
+    db_query("UPDATE {domain} SET parent = %d WHERE domain_id IN ($placeholders)", 0, $children);
   }
 }
 
@@ -297,18 +292,18 @@ function _domain_relationships_set_default_parent($domain_id) {
  * @param $separator
  *   string to indent domains with
  */
-function domain_relationships_domain_list($valid = FALSE){
+function domain_relationships_domain_list($valid = FALSE) {
   $options = array();
   // Change options order based on sloc
   $condition = '';
   if (isset($valid)) {
     $condition = ' AND valid = 1';
   }
-  $result = db_query("SELECT domain_id, sloc FROM {domain} WHERE domain_id > 0 ". $condition ." ORDER BY sloc");
+  $result = db_query("SELECT domain_id, sloc FROM {domain} WHERE domain_id > 0 $condition ORDER BY sloc");
   while ($row = db_fetch_array($result)) {
     $key = $row['domain_id'];
     $indent_level = !empty($row->sloc) ? intval(strlen($row['sloc'])) : 3;
-    $options[$key] = $indent_level-3;
+    $options[$key] = $indent_level - 3;
   }
   return $options;
 }
