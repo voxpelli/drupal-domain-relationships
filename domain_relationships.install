@@ -1,0 +1,31 @@
+<?php
+// $Id: domain_relationships.install,v 1.1 2009/08/29 00:40:59 nonsie Exp $
+
+/**
+ * @file
+ * Alters domain table to accommodate relationships between domains
+ */
+
+function domain_relationships_install_schema() {
+  $schema = array();
+  // add domain.parent
+  db_add_field($ret, 'domain', 'parent', array('type' => 'int', 'not null' => TRUE, 'default' => 0, 'description' => t('The parent id of this domain, 0 indicating the default domain.')));
+  db_add_field($ret, 'domain', 'sloc', array('type' => 'varchar', 'length' => 30, 'not null' => FALSE, 'description' => t('The structural location of this domain relative to its peers; derived from parent id and alphabetical position.')));
+  return $schema;
+}
+
+function domain_relationships_uninstall_schema() {
+  $schema = array();
+  // drop domain.parent, domain.sloc
+  db_drop_field($ret, 'domain', 'parent');
+  db_drop_field($ret, 'domain', 'sloc');
+  return $schema;
+}
+
+function domain_relationships_install() {
+  drupal_install_schema('domain_relationships_install');
+}
+
+function domain_relationships_uninstall() {
+  drupal_uninstall_schema('domain_relationships_uninstall');
+}
