@@ -50,11 +50,5 @@ function _domain_relationships_get_fields() {
     'default' => 0,
     'description' => t('The parent id of this domain, 0 indicating the default domain.')
   );
-  $schema['domain']['fields']['sloc'] = array(
-    'type' => 'varchar',
-    'length' => 30,
-    'not null' => FALSE,
-    'description' => t('The structural location of this domain relative to its peers; derived from parent id and alphabetical position.'),
-  );
   return $schema;
 }
