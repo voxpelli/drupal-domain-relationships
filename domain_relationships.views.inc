@@ -51,3 +51,19 @@ function domain_relationships_views_handlers() {
     ),
   );
 }
+
+/**
+ * Implementation of hook_views_plugins().
+ */
+function domain_relationships_views_plugins() {
+  return array(
+    'argument default' => array(
+      'node' => array(
+        'title' => t("Current domain's top ancestor ID"),
+        'handler' => 'domain_relationships_plugin_argument_default_top',
+        'path' => drupal_get_path('module', 'domain_relationships') . '/includes',
+        'parent' => 'fixed', // so that the parent class is included
+      ),
+    ),
+  );
+}
