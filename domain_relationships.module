@@ -27,6 +27,15 @@ function domain_relationships_help($path, $arg) {
   return $output;
 }
 
+/**
+ * Implementation of hook_views_api().
+ */
+function domain_relationships_views_api() {
+  return array(
+    'api' => 2,
+    'path' => drupal_get_path('module', 'domain_relationships') . '/includes',
+  );
+}
 
 /**
  * Implementation of hook_form_alter().
@@ -211,6 +220,22 @@ function _domain_relationships_tree_set_valid($tree, $valid) {
     $tree[$key]['children'] = _domain_relationships_tree_set_valid($tree[$key]['children'], $valid);
   }
   return $tree;
+}
+
+function _domain_relationships_tree_get_ancestors($tree, $id) {
+  foreach ($tree as $key => $value) {
+    if ($key == $id) {
+      return array();
+    }
+    elseif (!empty($value['children'])) {
+      $ancestors = _domain_relationships_tree_get_ancestors($value['children'], $id);
+      if ($ancestors !== FALSE) {
+        array_unshift($ancestors, $key);
+        return $ancestors;
+      }
+    }
+  }
+  return FALSE;
 }
 
 /**
