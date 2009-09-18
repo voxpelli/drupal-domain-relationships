@@ -1,14 +1,7 @@
-; $Id: domain_relationships.info,v 1.1 2009/08/29 00:40:59 nonsie Exp $
+; $Id$
 name = Domain Relationships
 description = Provides relationships between domains for domain access module
 dependencies[] = domain
 package = Domain Access
 core = 6.x
-
-
-; Information added by drupal.org packaging script on 2009-08-29
-version = "6.x-1.x-dev"
-core = "6.x"
-project = "domain_relationships"
-datestamp = "1251547718"
 

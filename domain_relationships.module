@@ -1,5 +1,5 @@
 <?php
-// $Id: domain_relationships.module,v 1.1 2009/08/29 00:40:59 nonsie Exp $
+// $Id$
 
 /**
  * @file
@@ -40,12 +40,20 @@ function domain_relationships_form_alter(&$form, $form_state, $form_id) {
       // Handle relationships between domains on domain form
       case 'domain_form':
         $domain_list = domain_relationships_all_active_domains();
-        $domain_list[-1] = t('None');
-        $default_parent = -1;
-        if (!empty($form['domain_id']['#value'])) {
+        $domain_list[-1] = t('-- Root (no parent) --');
+        // Order by domain IDs
+        ksort($domain_list);
+
+        if (!empty($form['domain_id']['#value']) || $form['domain_id']['#value'] == 0) {
           unset($domain_list[$form['domain_id']['#value']]);
-          $default_parent = domain_relationships_domain_parent($form['domain_id']['#value']);
+          $domain_parent = domain_relationships_domain_parent($form['domain_id']['#value']);
+          $default_parent = $domain_parent;
         }
+        else {
+          // By default assign no domain as parent
+          $default_parent = -1;
+        }
+
         $form['domain']['parent'] = array(
           '#type' => 'select',
           '#title' => t('Domain parent'),
@@ -67,7 +75,11 @@ function domain_relationships_form_alter(&$form, $form_state, $form_id) {
         break;
       // Displays domains in correct order on the user edit form
       case 'user_profile_form':
-        domain_relationships_show_domain_hierarchy($form, 'domain_user_default', 'default_domain');
+      case 'user_register':
+        if (module_exists('domain_user_default')) {
+          domain_relationships_show_domain_hierarchy($form, 'domain_user_default', 'default_domain');
+        }
+        domain_relationships_show_domain_hierarchy($form, 'domain_user', 'domain_user');
         break;
     }
   }
@@ -94,7 +106,13 @@ function domain_relationships_show_domain_hierarchy(&$form, $form_element, $form
   if (is_array($element['#options'])) {
     $allowed_domains = array();
     foreach ($element['#options'] as $allowed_option_key => $allowed_option_value) {
-      $allowed_domains[] = $allowed_option_key;
+      // Default domain is stored with ID 0 but used as -1
+      if ($allowed_option_key == -1) {
+        array_push($allowed_domains, 0);
+      }
+      else {
+        array_push($allowed_domains, $allowed_option_key);
+      }
     }
     $tree = _domain_relationships_tree();
     $tree = _domain_relationships_tree_set_valid($tree, $allowed_domains);
@@ -108,39 +126,21 @@ function domain_relationships_show_domain_hierarchy(&$form, $form_element, $form
  */
 function domain_relationships_domain_form_submit($form, $form_state) {
   $domain_parent = $form_state['values']['parent'];
-
-  if ($domain_parent == -1) {
-    $domain_parent = NULL;
-  }
-
   // Updating an existing domain or inserting a new record
   if (!empty($form_state['values']['domain_id'])) {
     $domain_id = $form_state['values']['domain_id'];
-    $values = array($domain_id);
-
     // If there is a record for current domain in the DB update its records, otherwise attempt to create it
-    $check = db_result(db_query("SELECT COUNT(domain_id) FROM {domain} WHERE domain_id = %d", $values));
-    if ($domain_parent === NULL) {
-      if ($check > 0) {
-        $sql = "UPDATE {domain} SET parent = NULL WHERE domain_id = %d";
-      }
-      else {
-        $sql = "INSERT INTO {domain} (domain_id) VALUES (%d)";
-      }
+    $check = db_result(db_query("SELECT COUNT(domain_id) FROM {domain} WHERE domain_id = %d", $domain_id));
+    if ($check > 0) {
+      $sql = "UPDATE {domain} SET parent = %d WHERE domain_id = %d";
     }
     else {
-      array_unshift($values, $domain_parent);
-      if ($check > 0) {
-        $sql = "UPDATE {domain} SET parent = %d WHERE domain_id = %d";
-      }
-      else {
-        $sql = "INSERT INTO {domain} (parent, domain_id) VALUES (%d, %d)";
-      }
+      $sql = "INSERT INTO {domain} (domain_id, parent) VALUES (%d, %d)";
     }
-    db_query($sql, $values);
+    db_query($sql, $domain_parent, $domain_id);
   }
-  elseif ($domain_parent !== NULL) {
-    //TODO: What is happening here?
+  else {
+    // Make sure similar subdomain doesn't already exist
     $created_domain = db_result(db_query("SELECT domain_id FROM {domain} WHERE subdomain = '%s'", $form_state['values']['subdomain']));
     if ($created_domain) {
       db_query("UPDATE {domain} SET parent = %d WHERE domain_id = %d", $domain_parent, $created_domain);
@@ -207,7 +207,7 @@ function _domain_relationships_tree_construct($src) {
 
 function _domain_relationships_tree_set_valid($tree, $valid) {
   foreach ($tree as $key => $value) {
-    $tree[$key]['valid'] = in_array($key == 0 ? -1 : $key, $valid);
+    $tree[$key]['valid'] = in_array($key, $valid);
     $tree[$key]['children'] = _domain_relationships_tree_set_valid($tree[$key]['children'], $valid);
   }
   return $tree;
@@ -228,6 +228,12 @@ function domain_relationships_all_active_domains() {
   return $active_domains;
 }
 
+/**
+ * Retrieve parent domain ID fora given domain.
+ * If no parent is found return -1 (root level)
+ * @param $domain_id
+ *   int 
+ */
 function domain_relationships_domain_parent($domain_id) {
   $parent_id = db_result(db_query("SELECT parent FROM {domain} WHERE domain_id = %d", $domain_id));
   if ($parent_id === FALSE) {
@@ -311,8 +317,6 @@ function _domain_relationships_options_list_indent($tree, $valid = FALSE, $inden
   return $indented;
 }
 
-/** Theming functions **/
-
 /**
  * Implementation of hook_theme().
  *
@@ -320,27 +324,11 @@ function _domain_relationships_options_list_indent($tree, $valid = FALSE, $inden
 function domain_relationships_theme() {
   return array(
     'domain_relationships_domain_select_list' => array(
-      'arguments' => array('domain' => NULL),
+      'arguments' => array('domain' => NULL, 'level' => NULL, 'subdomain' => NULL),
+      'file' => 'domain_relationships.theme.inc',
     ),
     'domain_relationships_domain_checkbox' => array(
       'arguments' => array('form' => NULL),
     )
   );
-}
-
-/**
- * Theme individual domain listing used in select elements
- */
-function theme_domain_relationships_domain_select_list($domain) {
-  return $domain['sitename'] .' - '. $domain['subdomain'];
-}
-
-/**
- * Theme individual checkboxes used in checkbox-lists
- */
-function theme_domain_relationships_domain_checkbox($element) {
-  $element['#title'] = str_repeat('&nbsp;', $element['#indent'] * 3) . $element['#title'];
-  $output = theme('checkbox', $element);
-  return $output;
-
 }
