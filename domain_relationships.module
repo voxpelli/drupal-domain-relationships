@@ -1,5 +1,5 @@
 <?php
-// $Id: domain_relationships.module,v 1.1 2009/08/29 00:40:59 nonsie Exp $
+// $Id$
 
 /**
  * @file
@@ -40,11 +40,20 @@ function domain_relationships_form_alter(&$form, $form_state, $form_id) {
       // Handle relationships between domains on domain form
       case 'domain_form':
         $domain_list = domain_relationships_all_active_domains();
-        $default_parent = 0;
-        if (!empty($form['domain_id']['#value'])) {
+        $domain_list[-1] = t('-- Root (no parent) --');
+        // Order by domain IDs
+        ksort($domain_list);
+
+        if (!empty($form['domain_id']['#value']) || $form['domain_id']['#value'] == 0) {
           unset($domain_list[$form['domain_id']['#value']]);
-          $default_parent = domain_relationships_domain_parent($form['domain_id']['#value']);
+          $domain_parent = domain_relationships_domain_parent($form['domain_id']['#value']);
+          $default_parent = $domain_parent;
         }
+        else {
+          // By default assign default domain as parent
+          $default_parent = 0;
+        }
+
         $form['domain']['parent'] = array(
           '#type' => 'select',
           '#title' => t('Domain parent'),
@@ -65,14 +74,18 @@ function domain_relationships_form_alter(&$form, $form_state, $form_id) {
           $tree_options = array();
           $tree_options[-1] = $options[-1];
           foreach ($indented as $domain => $indent_level) {
-            $tree_options[$domain] = theme('domain_relationships_domain_display_list', $options[$domain], $indent_level);
+            $tree_options[$domain] = theme('domain_relationships_domain_display_list', $options[$domain], $indent_level, TRUE);
           }
           $form['domain_vis_settings']['domain_blocks']['#options'] = $tree_options;
         }
         break;
       // Displays domains in correct order on the user edit form
       case 'user_profile_form':
-        domain_relationships_show_domain_hierarchy($form, 'domain_user_default', 'default_domain');
+      case 'user_register':
+        if (module_exists('domain_user_default')) {
+          domain_relationships_show_domain_hierarchy($form, 'domain_user_default', 'default_domain');
+        }
+        domain_relationships_show_domain_hierarchy($form, 'domain_user', 'domain_user');
         break;
     }
   }
@@ -99,21 +112,27 @@ function domain_relationships_show_domain_hierarchy(&$form, $form_element, $form
   if (is_array($element['#options'])) {
     $allowed_domains = array();
     foreach ($element['#options'] as $allowed_option_key => $allowed_option_value) {
-      $allowed_domains[] = $allowed_option_key;
+      // Default domain is stored with ID 0 but used as -1
+      if ($allowed_option_key == -1) {
+        array_push($allowed_domains, 0);
+      }
+      else {
+        array_push($allowed_domains, $allowed_option_key);
+      }
     }
     $placeholders = db_placeholders($allowed_domains);
-    $result = db_query("SELECT domain_id, sitename, sloc FROM {domain} WHERE domain_id IN ($placeholders) ORDER BY sloc", $allowed_domains);
-    // Output according to their structural location but keep default domain 'as is' if in original list.
-    if (in_array(-1, $allowed_domains)) {
-      $default_option = $element['#options'][-1];
-      $element['#options'] = array();
-      $element['#options'][-1] = $default_option;
-    }
-    else {
-      $form[$form_element][$form_element_selected]['#options'] = array();
-    }
-    while ($data = db_fetch_object($result)) {
-      $element['#options'][$data->domain_id] = theme('domain_relationships_domain_display_list', $data->sitename, drupal_strlen($data->sloc));
+    $result = db_query("SELECT domain_id, sitename, subdomain, sloc, parent FROM {domain} WHERE domain_id IN ($placeholders) ORDER BY sloc", $allowed_domains);
+    // Output according to their structural location, use different theme funtions depending on field type
+    $form_field_type = $element['#type'];
+    // Unset the original domain list order
+    unset($element['#options']);
+    while ($data = db_fetch_array($result)) {
+      // Default domain id in forms is -1
+      $domain_id = $data['domain_id'] > 0 ? $data['domain_id'] : -1;
+      $level = strlen(str_replace(':', '', $data['sloc'])) / 3 - 1;
+      $element['#options'][$domain_id] =
+      $form_field_type == 'select' ? theme('domain_relationships_domain_select_list', $data, $level) :
+      theme('domain_relationships_domain_display_list', $data['sitename'], $level);
     }
     $form[$form_element][$form_element_selected] = $element;
   }
@@ -124,6 +143,7 @@ function domain_relationships_show_domain_hierarchy(&$form, $form_element, $form
  * Submit handler for domain form
  */
 function domain_relationships_domain_form_submit($form, $form_state) {
+  $domain_parent = $form_state['values']['parent'];
   // Updating an existing domain or inserting a new record
   if (!empty($form_state['values']['domain_id'])) {
     $domain_parent = $form_state['values']['parent'] == 1 ? -1 : $form_state['values']['parent'];
@@ -137,11 +157,10 @@ function domain_relationships_domain_form_submit($form, $form_state) {
     }
   }
   else {
-    //TODO: Should it really be %b here?
+    // Make sure similar subdomain doesn't already exist
     $check_domain_exists = db_fetch_array(db_query("SELECT domain_id FROM {domain} WHERE subdomain = %b", $form_state['values']['subdomain']));
     if (is_array($check_domain_exists)) {
       $created_domain = $check_domain_exists['domain_id'];
-      $domain_parent = $form_state['values']['parent'] == 1 ? -1 : $form_state['values']['parent'];
       db_query("UPDATE {domain} SET parent = %d WHERE domain_id = %d", $domain_parent, $created_domain);
     }
   }
@@ -162,7 +181,7 @@ class domain_relationships_tree_datatype {
  * Recalculate and update domain sloc based on parent and alphabetical order
  */
 function recalculate_domain_slocs() {
-  $result = db_query("SELECT domain_id, sitename, parent FROM {domain}");
+  $result = db_query("SELECT domain_id, sitename, parent FROM {domain} ORDER BY domain_id");
 
   // Capture in an array of objects for ease of processing.
   $domain_array = array();
@@ -173,17 +192,20 @@ function recalculate_domain_slocs() {
     $temp->parent = $data->parent;
     $domain_array[$temp->name] = $temp;
     $temp = '';
+    if (!isset($top_level_indicator) || $data->parent < $top_level_indicator) {
+      $top_level_indicator = $data->parent;
+    }
   }
   $processed_domains = array();
   $tempq = array();
   // Process into sloc tree
   // Get first level domains
   foreach ($domain_array as $d) {
-    if ($d->parent == -1 or $d->parent == 0) {
+    if ($d->parent == $top_level_indicator) {
       $tempq[] = $d->name;
     }
   }
-  sort($tempq);
+  
   $counter = 0;
   foreach ($tempq as $qdomain_name) {
     $domain_array["$qdomain_name"]->sloc = sprintf("%03d", $counter);
@@ -245,11 +267,17 @@ function domain_relationships_all_active_domains() {
   return $active_domains;
 }
 
+/**
+ * Retrieve parent domain ID fora given domain.
+ * If no parent is found return -1 (root level)
+ * @param $domain_id
+ *   int 
+ */
 function domain_relationships_domain_parent($domain_id) {
   $check = db_result(db_query("SELECT COUNT(domain_id) FROM {domain} WHERE domain_id = %d", $domain_id));
   if ($check > 0) {
     $parent = db_fetch_array(db_query("SELECT parent FROM {domain} WHERE domain_id = %d", $domain_id));
-    $parent_id = $parent['parent'] == 0 ? -1 : $parent['parent'];
+    $parent_id = $parent['parent'];
   }
   else {
     $parent_id = -1;
@@ -308,8 +336,6 @@ function domain_relationships_domain_list($valid = FALSE) {
   return $options;
 }
 
-/** Theming functions **/
-
 /**
  * Implementation of hook_theme().
  *
@@ -317,24 +343,12 @@ function domain_relationships_domain_list($valid = FALSE) {
 function domain_relationships_theme() {
   return array(
     'domain_relationships_domain_select_list' => array(
-      'arguments' => array('domain' => NULL),
+      'arguments' => array('domain' => NULL, 'level' => NULL, 'subdomain' => NULL),
+      'file' => 'domain_relationships.theme.inc',
     ),
     'domain_relationships_domain_display_list' => array(
       'arguments' => array('domain' => NULL, 'level' => NULL),
+      'file' => 'domain_relationships.theme.inc',
     )
   );
-}
-
-/**
- * Theme individual domain listing used in select elements
- */
-function theme_domain_relationships_domain_select_list($domain) {
-  return $domain['sitename'] .' - '. $domain['subdomain'];
-}
-
-/**
- * Theme individual domain listing used in select elements
- */
-function theme_domain_relationships_domain_display_list($domain, $level = 0) {
-  return str_repeat('&nbsp;', $level) . $domain;
 }
