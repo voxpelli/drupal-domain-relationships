@@ -27,7 +27,6 @@ function domain_relationships_help($path, $arg) {
   return $output;
 }
 
-
 /**
  * Implementation of hook_form_alter().
  */
@@ -338,7 +337,6 @@ function domain_relationships_domain_list($valid = FALSE) {
 
 /**
  * Implementation of hook_theme().
- *
  */
 function domain_relationships_theme() {
   return array(
