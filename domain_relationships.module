@@ -28,6 +28,16 @@ function domain_relationships_help($path, $arg) {
 }
 
 /**
+ * Implementation of hook_views_api().
+ */
+function domain_relationships_views_api() {
+  return array(
+    'api' => 2,
+    'path' => drupal_get_path('module', 'domain_relationships') . '/includes',
+  );
+}
+
+/**
  * Implementation of hook_form_alter().
  */
 function domain_relationships_form_alter(&$form, $form_state, $form_id) {
