@@ -204,7 +204,7 @@ function recalculate_domain_slocs() {
       $tempq[] = $d->name;
     }
   }
-  
+
   $counter = 0;
   foreach ($tempq as $qdomain_name) {
     $domain_array["$qdomain_name"]->sloc = sprintf("%03d", $counter);
@@ -270,7 +270,7 @@ function domain_relationships_all_active_domains() {
  * Retrieve parent domain ID fora given domain.
  * If no parent is found return -1 (root level)
  * @param $domain_id
- *   int 
+ *   int
  */
 function domain_relationships_domain_parent($domain_id) {
   $check = db_result(db_query("SELECT COUNT(domain_id) FROM {domain} WHERE domain_id = %d", $domain_id));
