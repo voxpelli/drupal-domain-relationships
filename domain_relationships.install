@@ -58,7 +58,6 @@ function domain_relationships_update_6101() {
   // Set default domain parent to none
   $sql = "UPDATE {domain} SET parent = %d WHERE domain_id = %d";
   db_query($sql, -1, 0);
-  recalculate_domain_slocs();
   $ret[] = array(
       'success' => true,
       'query' => 'Set default domain parent to none.',
