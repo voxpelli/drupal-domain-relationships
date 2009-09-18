@@ -222,6 +222,22 @@ function _domain_relationships_tree_set_valid($tree, $valid) {
   return $tree;
 }
 
+function _domain_relationships_tree_get_ancestors($tree, $id) {
+  foreach ($tree as $key => $value) {
+    if ($key == $id) {
+      return array();
+    }
+    elseif (!empty($value['children'])) {
+      $ancestors = _domain_relationships_tree_get_ancestors($value['children'], $id);
+      if ($ancestors !== FALSE) {
+        array_unshift($ancestors, $key);
+        return $ancestors;
+      }
+    }
+  }
+  return FALSE;
+}
+
 /**
  * Return all active and valid domains that can possibly be parents
  * to other domains and a placeholder for no domain parent.
