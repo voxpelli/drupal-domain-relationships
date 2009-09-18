@@ -6,24 +6,49 @@
  * Alters domain table to accommodate relationships between domains
  */
 
-function domain_relationships_install_schema() {
-  $schema = array();
-  // add domain.parent
-  db_add_field($ret, 'domain', 'parent', array('type' => 'int', 'not null' => TRUE, 'default' => 0, 'description' => t('The parent id of this domain, 0 indicating the default domain.')));
-  return $schema;
+/**
+ * Implementation of hook_schema_alter().
+ *
+ * @param $schema
+ *   The system-wide schema
+ */
+function domain_relationships_schema_alter(&$schema) {
+  $schema_changes = _domain_relationships_get_fields();
+  $schema = array_merge_recursive($schema, $schema_changes);
 }
 
-function domain_relationships_uninstall_schema() {
-  $schema = array();
-  // drop domain.parent, domain.sloc
-  db_drop_field($ret, 'domain', 'parent');
-  return $schema;
-}
-
+/**
+ * Implementation of hook_install().
+ */
 function domain_relationships_install() {
-  drupal_install_schema('domain_relationships_install');
+  $ret = array();
+  $schema = _domain_relationships_get_fields();
+  foreach ($schema as $table => $properties) {
+    foreach ($properties['fields'] as $name => $field) {
+      db_add_field($ret, $table, $name, $field);
+    }
+  }
 }
 
+/**
+ * Implementation of hook_uninstall().
+ */
 function domain_relationships_uninstall() {
-  drupal_uninstall_schema('domain_relationships_uninstall');
+  $schema = _domain_relationships_get_fields();
+  foreach ($schema as $table => $properties) {
+    foreach ($properties['fields'] as $name => $field) {
+      db_drop_field($ret, $table, $name);
+    }
+  }
+}
+
+function _domain_relationships_get_fields() {
+  $schema = array();
+  $schema['domain']['fields']['parent'] = array(
+    'type' => 'int',
+    'not null' => TRUE,
+    'default' => 0,
+    'description' => t('The parent id of this domain, 0 indicating the default domain.')
+  );
+  return $schema;
 }
