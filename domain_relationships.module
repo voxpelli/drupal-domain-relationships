@@ -27,7 +27,6 @@ function domain_relationships_help($path, $arg) {
   return $output;
 }
 
-
 /**
  * Implementation of hook_form_alter().
  */
@@ -319,7 +318,6 @@ function _domain_relationships_options_list_indent($tree, $valid = FALSE, $inden
 
 /**
  * Implementation of hook_theme().
- *
  */
 function domain_relationships_theme() {
   return array(
