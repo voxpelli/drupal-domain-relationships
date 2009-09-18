@@ -1,5 +1,5 @@
 <?php
-// $Id: domain_relationships.install,v 1.1 2009/08/29 00:40:59 nonsie Exp $
+// $Id$
 
 /**
  * @file
@@ -47,8 +47,8 @@ function _domain_relationships_get_fields() {
   $schema['domain']['fields']['parent'] = array(
     'type' => 'int',
     'not null' => TRUE,
-    'default' => 0,
-    'description' => t('The parent id of this domain, 0 indicating the default domain.')
+    'default' => -1,
+    'description' => t('The parent id of this domain, -1 indicating no parent.')
   );
   $schema['domain']['fields']['sloc'] = array(
     'type' => 'varchar',
@@ -57,4 +57,17 @@ function _domain_relationships_get_fields() {
     'description' => t('The structural location of this domain relative to its peers; derived from parent id and alphabetical position.'),
   );
   return $schema;
+}
+
+function domain_relationships_update_6101() {
+  $ret = array();
+  // Set default domain parent to none
+  $sql = "UPDATE {domain} SET parent = %d WHERE domain_id = %d";
+  db_query($sql, -1, 0);
+  recalculate_domain_slocs();
+  $ret[] = array(
+      'success' => true,
+      'query' => 'Set default domain parent to none.',
+    );
+  return $ret;
 }
