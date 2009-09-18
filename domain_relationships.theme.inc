@@ -19,8 +19,10 @@ function theme_domain_relationships_domain_select_list($domain, $level = 0, $sho
 }
 
 /**
- * Theme individual domain listing used in display elements
+ * Theme individual checkboxes used in checkbox-lists
  */
-function theme_domain_relationships_domain_display_list($domain_sitename, $level = 0) {
-  return str_repeat('&nbsp;', $level) . $domain_sitename;
+function theme_domain_relationships_domain_checkbox($element) {
+  $element['#title'] = str_repeat('&nbsp;', $element['#indent'] * 3) . $element['#title'];
+  $output = theme('checkbox', $element);
+  return $output;
 }
