@@ -194,8 +194,7 @@ function _domain_relationships_tree_construct($src) {
   }
   foreach ($src as $key => $values) {
     $parent = $values['parent'];
-    //TODO: NULL and -1?
-    if ($parent === NULL) {
+    if ($parent == -1) {
       $tree[$key] = &$lookuparray[$key];
     }
     elseif (array_key_exists($parent, $lookuparray)) {
