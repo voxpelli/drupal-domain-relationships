@@ -50,24 +50,12 @@ function _domain_relationships_get_fields() {
     'default' => -1,
     'description' => t('The parent id of this domain, -1 indicating no parent.')
   );
-  $schema['domain']['fields']['sloc'] = array(
-    'type' => 'varchar',
-    'length' => 30,
-    'not null' => FALSE,
-    'description' => t('The structural location of this domain relative to its peers; derived from parent id and alphabetical position.'),
-  );
   return $schema;
 }
 
 function domain_relationships_update_6101() {
   $ret = array();
   // Set default domain parent to none
-  $sql = "UPDATE {domain} SET parent = %d WHERE domain_id = %d";
-  db_query($sql, -1, 0);
-  recalculate_domain_slocs();
-  $ret[] = array(
-      'success' => true,
-      'query' => 'Set default domain parent to none.',
-    );
+  $ret[] = update_sql("UPDATE {domain} SET parent = -1 WHERE domain_id = 0");
   return $ret;
 }
