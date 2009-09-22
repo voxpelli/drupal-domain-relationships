@@ -130,7 +130,7 @@ class domain_relationships_handler_argument_related extends views_handler_argume
     }
 
     if (empty($subquery)) {
-      $group_id = $this->set_where_group('OR');
+      $group_id = $this->query->set_where_group('OR');
       $this->query->add_where($group_id , "$this->table_alias.$this->real_field = %d", $this->argument);
       $this->query->add_where($group_id , "$this->table_alias.parent = %d", $this->argument);
     }
