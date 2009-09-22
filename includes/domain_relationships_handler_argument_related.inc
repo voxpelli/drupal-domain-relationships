@@ -78,6 +78,8 @@ class domain_relationships_handler_argument_related extends views_handler_argume
   function query() {
     $this->ensure_my_table();
 
+    $multiple = FALSE;
+
     if (!empty($this->options['break_phrase'])) {
       $tids = new stdClass();
       $tids->value = $this->argument;
@@ -87,6 +89,7 @@ class domain_relationships_handler_argument_related extends views_handler_argume
       }
 
       if (count($tids->value) > 1) {
+        $multiple = TRUE;
         $placeholder = " IN (" . implode(', ', array_fill(0, sizeof($tids->value), '%d')) . ")";
       }
       else {
@@ -99,7 +102,7 @@ class domain_relationships_handler_argument_related extends views_handler_argume
       $placeholder = "= %d";
       $tids = array($this->argument);
     }
-    $subquery = "\n  SELECT d.domain_id FROM {domain} d\n";
+    $subquery = '';
     $where = "  WHERE d.domain_id $placeholder\n";
     $args = $tids;
     $last = 'd';
@@ -114,16 +117,27 @@ class domain_relationships_handler_argument_related extends views_handler_argume
       }
     }
     if ($this->options['positive_depth'] > 0) {
-      $last = 'd';
-      foreach (range(1, abs($this->options['positive_depth'])) as $count) {
-        $current = "pd$count";
-        $subquery .= "    LEFT JOIN {domain} $current ON $last.parent = $current.domain_id\n";
-        $where .= "    OR $current.domain_id $placeholder\n";
-        $args = array_merge($args, $tids);
-        $last = $current;
+      if ($multiple || !empty($subquery) || $this->options['positive_depth'] != 1) {
+        $last = 'd';
+        foreach (range(1, abs($this->options['positive_depth'])) as $count) {
+          $current = "pd$count";
+          $subquery .= "    LEFT JOIN {domain} $current ON $last.parent = $current.domain_id\n";
+          $where .= "    OR $current.domain_id $placeholder\n";
+          $args = array_merge($args, $tids);
+          $last = $current;
+        }
       }
     }
 
-    $this->query->add_where(0, "$this->table_alias.$this->real_field IN ($subquery$where  )", $args);
+    if (empty($subquery)) {
+      $group_id = $this->set_where_group('OR');
+      $this->query->add_where($group_id , "$this->table_alias.$this->real_field = %d", $this->argument);
+      $this->query->add_where($group_id , "$this->table_alias.parent = %d", $this->argument);
+    }
+    else {
+      $subquery = "\n  SELECT d.domain_id FROM {domain} d\n" . $subquery;
+      $this->query->add_where(0, "$this->table_alias.$this->real_field IN ($subquery$where  )", $args);
+    }
+
   }
 }
