@@ -108,7 +108,7 @@ class domain_relationships_handler_argument_related extends views_handler_argume
     $last = 'd';
 
     if ($this->options['negative_depth'] > 0) {
-      foreach (range(1, abs($this->options['negative_depth'])) as $count) {
+      for ($count = 1; $count <= $this->options['negative_depth']; $count++) {
         $current = "nd$count";
         $subquery .= "    LEFT JOIN {domain} $current ON $last.domain_id = $current.parent\n";
         $where .= "    OR $current.domain_id $placeholder\n";
@@ -119,7 +119,7 @@ class domain_relationships_handler_argument_related extends views_handler_argume
     if ($this->options['positive_depth'] > 0) {
       if ($multiple || !empty($subquery) || $this->options['positive_depth'] != 1) {
         $last = 'd';
-        foreach (range(1, abs($this->options['positive_depth'])) as $count) {
+        for ($count = 1; $count <= $this->options['positive_depth']; $count++) {
           $current = "pd$count";
           $subquery .= "    LEFT JOIN {domain} $current ON $last.parent = $current.domain_id\n";
           $where .= "    OR $current.domain_id $placeholder\n";

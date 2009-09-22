@@ -58,7 +58,7 @@ function domain_relationships_views_handlers() {
 function domain_relationships_views_plugins() {
   return array(
     'argument default' => array(
-      'node' => array(
+      'current_domain_ancestors' => array(
         'title' => t("Current domain's top ancestor ID"),
         'handler' => 'domain_relationships_plugin_argument_default_top',
         'path' => drupal_get_path('module', 'domain_relationships') . '/includes',
