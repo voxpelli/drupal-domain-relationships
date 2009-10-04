@@ -1,5 +1,5 @@
 <?php
-// $Id$
+// $Id: domain_relationships.theme.inc,v 1.1.2.1 2009/09/28 18:43:44 nonsie Exp $
 
 /**
  * @file
@@ -17,8 +17,6 @@ function theme_domain_relationships_domain_select($domain, $level = 0) {
  * Theme individual checkboxes used in checkbox-lists
  */
 function theme_domain_relationships_domain_checkboxes($domain, $level = 0) {
-  //echo '<br>theme_domain_relationships_domain_checkboxes for ';
-  //var_dump($domain);
   return str_repeat('&nbsp;', $level) . $domain['sitename'];
 }
 

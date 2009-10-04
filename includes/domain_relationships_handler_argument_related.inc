@@ -1,5 +1,12 @@
 <?php
-// $Id$
+// $Id: domain_relationships_handler_argument_related.inc,v 1.1.2.1 2009/09/30 22:43:50 nonsie Exp $
+
+/**
+ * @file
+ *
+ * Provide argument handler for related domains in domain_relationships.module
+ */
+
 /**
  * Argument handler for related domains.
  */
@@ -35,7 +42,7 @@ class domain_relationships_handler_argument_related extends views_handler_argume
     $form['break_phrase'] = array(
       '#type' => 'checkbox',
       '#title' => t('Allow multiple terms per argument'),
-      '#description' => t('If selected, users can enter multiple arguments in the form of 1+2+3. Due to the number of JOINs it would require, AND will be treated as OR with this argument.'),
+      '#description' => t('If selected, users can enter multiple arguments in the form of 123. Due to the number of JOINs it would require, AND will be treated as OR with this argument.'),
       '#default_value' => !empty($this->options['break_phrase']),
     );
   }
@@ -107,8 +114,8 @@ class domain_relationships_handler_argument_related extends views_handler_argume
     if ($this->options['negative_depth'] > 0) {
       foreach (range(1, abs($this->options['negative_depth'])) as $count) {
         $current = "nd$count";
-        $subquery .= "    LEFT JOIN {domain} $current ON $last.domain_id = $current.parent\n";
-        $where .= "    OR $current.domain_id $placeholder\n";
+        $subquery .= " LEFT JOIN {domain} $current ON $last.domain_id = $current.parent\n";
+        $where .= " OR $current.domain_id $placeholder\n";
         $args = array_merge($args, $tids);
         $last = $current;
       }
@@ -117,8 +124,8 @@ class domain_relationships_handler_argument_related extends views_handler_argume
       $last = 'd';
       foreach (range(1, abs($this->options['positive_depth'])) as $count) {
         $current = "pd$count";
-        $subquery .= "    LEFT JOIN {domain} $current ON $last.parent = $current.domain_id\n";
-        $where .= "    OR $current.domain_id $placeholder\n";
+        $subquery .= " LEFT JOIN {domain} $current ON $last.parent = $current.domain_id\n";
+        $where .= " OR $current.domain_id $placeholder\n";
         $args = array_merge($args, $tids);
         $last = $current;
       }

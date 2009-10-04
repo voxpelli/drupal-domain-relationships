@@ -1,5 +1,5 @@
 <?php
-// $Id$
+// $Id: domain_relationships.module,v 1.1.2.1 2009/09/28 18:43:44 nonsie Exp $
 
 /**
  * @file
@@ -58,7 +58,6 @@ function domain_relationships_form_alter(&$form, $form_state, $form_id) {
           // By default assign no domain as parent
           $default_parent = -1;
         }
-        
         $tree = _domain_relationships_tree();
         $tree = _domain_relationships_tree_set_valid($tree, array_keys($domains));
         $options = _domain_relationships_options_list_indent($tree, TRUE, 'select');
@@ -180,8 +179,9 @@ function _domain_relationships_tree($rebuild = FALSE) {
     }
   }
   if (empty($tree) || $rebuild) {
-    $where = $only_valid ? 'WHERE valid = 1' : '';
-    $result = db_query("SELECT domain_id, subdomain, sitename, scheme, valid, parent FROM {domain} $where ORDER BY sitename ASC");
+    $sql = 'SELECT domain_id, subdomain, sitename, scheme, valid, parent FROM {domain} ORDER BY sitename ASC';
+    if ($only_valid) $sql = 'SELECT domain_id, subdomain, sitename, scheme, valid, parent FROM {domain} WHERE valid = 1 ORDER BY sitename ASC';
+    $result = db_query($sql);
 
     // Capture in an array of objects for ease of processing.
     $domains = array();
@@ -250,21 +250,6 @@ function _domain_relationships_tree_get_ancestors($tree, $id) {
 }
 
 /**
- * Return all active and valid domains that can possibly be parents
- * to other domains.
- *
- * @return
- *   array
- *
-function domain_relationships_all_active_domains() {
-  $domains = domain_domains();
-  foreach ($domains as $domain) {
-    $active_domains[$domain['domain_id']] = theme('domain_relationships_domain_select', $domain);
-  }
-  return $active_domains;
-}
-*/
-/**
  * Retrieve parent domain ID fora given domain.
  * If no parent is found return -1 (root level)
  * @param $domain_id
@@ -287,7 +272,6 @@ function domain_relationships_domain_parent($domain_id) {
  *   array
  */
 function domain_relationships_domain_children($domain_id) {
-  //TODO: This function is broken!!
   $children = db_fetch_array(db_query("SELECT domain_id FROM {domain} WHERE parent = %d", $domain_id));
   return $children;
 }
