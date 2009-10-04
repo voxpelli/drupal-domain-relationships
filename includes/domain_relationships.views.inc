@@ -1,5 +1,5 @@
 <?php
-// $Id$
+// $Id: domain_relationships.views.inc,v 1.1.2.1 2009/09/30 22:43:50 nonsie Exp $
 
 /**
  * @file

@@ -1,5 +1,12 @@
 <?php
-// $Id$
+// $Id: domain_relationships_handler_argument_related.inc,v 1.1.2.1 2009/09/30 22:43:50 nonsie Exp $
+
+/**
+ * @file
+ *
+ * Provide argument handler for related domains in domain_relationships.module
+ */
+
 /**
  * Argument handler for related domains.
  */
@@ -138,6 +145,5 @@ class domain_relationships_handler_argument_related extends views_handler_argume
       $subquery = "\n  SELECT d.domain_id FROM {domain} d\n" . $subquery;
       $this->query->add_where(0, "$this->table_alias.$this->real_field IN ($subquery$where  )", $args);
     }
-
   }
 }

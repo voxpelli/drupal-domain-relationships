@@ -1,5 +1,5 @@
 <?php
-// $Id$
+// $Id: domain_relationships.module,v 1.1.2.1 2009/09/28 18:43:44 nonsie Exp $
 
 /**
  * @file
@@ -48,13 +48,9 @@ function domain_relationships_form_alter(&$form, $form_state, $form_id) {
     switch ($form_id) {
       // Handle relationships between domains on domain form
       case 'domain_form':
-        $domain_list = domain_relationships_all_active_domains();
-        $domain_list[-1] = t('-- Root (no parent) --');
-        // Order by domain IDs
-        ksort($domain_list);
-
+        $domains = domain_domains();
         if (!empty($form['domain_id']['#value']) || $form['domain_id']['#value'] == 0) {
-          unset($domain_list[$form['domain_id']['#value']]);
+          unset($domains[$form['domain_id']['#value']]);
           $domain_parent = domain_relationships_domain_parent($form['domain_id']['#value']);
           $default_parent = $domain_parent;
         }
@@ -62,8 +58,19 @@ function domain_relationships_form_alter(&$form, $form_state, $form_id) {
           // By default assign no domain as parent
           $default_parent = -1;
         }
+        $tree = _domain_relationships_tree();
+        $tree = _domain_relationships_tree_set_valid($tree, array_keys($domains));
+        $options = _domain_relationships_options_list_indent($tree, TRUE, 'select');
+        // Selects can use 0 unlicke checkboxes
+        $options[0] = $options[-1];
+        unset($options[-1]);
+        // Show no parent as the first option
+        $domain_list = array('-1' => t('Root (no parent)'));
+        foreach ($options as $key => $value) {
+          $domain_list[$key] = $value;
+        }
 
-        $form['domain']['parent'] = array(
+        $form['domain']['domain_parent'] = array(
           '#type' => 'select',
           '#title' => t('Domain parent'),
           '#description' => t('Domain from which this domain can inherit content from.'),
@@ -106,7 +113,7 @@ function domain_relationships_domainupdate($op, $domain, $edit = array()) {
 }
 
 /**
- * Overwrite the default list of checkbox options for domains with ordered
+ * Overwrite the default list of field options for domains with ordered
  * and indented list based on the domain hierarchy.
  */
 function domain_relationships_show_domain_hierarchy(&$form, $form_element, $form_element_selected) {
@@ -123,9 +130,10 @@ function domain_relationships_show_domain_hierarchy(&$form, $form_element, $form
         array_push($allowed_domains, $allowed_option_key);
       }
     }
+    $form_field_type = $element['#type'];
     $tree = _domain_relationships_tree();
     $tree = _domain_relationships_tree_set_valid($tree, $allowed_domains);
-    $options = _domain_relationships_options_list_indent($tree, TRUE);
+    $options = _domain_relationships_options_list_indent($tree, TRUE, $form_field_type);
     $form[$form_element][$form_element_selected]['#options'] = $options;
   }
 }
@@ -134,7 +142,7 @@ function domain_relationships_show_domain_hierarchy(&$form, $form_element, $form
  * Submit handler for domain form
  */
 function domain_relationships_domain_form_submit($form, $form_state) {
-  $domain_parent = $form_state['values']['parent'];
+  $domain_parent = $form_state['values']['domain_parent'];
   // Updating an existing domain or inserting a new record
   if (!empty($form_state['values']['domain_id'])) {
     $domain_id = $form_state['values']['domain_id'];
@@ -171,14 +179,18 @@ function _domain_relationships_tree($rebuild = FALSE) {
     }
   }
   if (empty($tree) || $rebuild) {
-    $where = $only_valid ? 'WHERE valid = 1' : '';
-    $result = db_query("SELECT domain_id, sitename, valid, parent FROM {domain} $where ORDER BY sitename ASC");
+    $sql = 'SELECT domain_id, subdomain, sitename, scheme, valid, parent FROM {domain} ORDER BY sitename ASC';
+    if ($only_valid) $sql = 'SELECT domain_id, subdomain, sitename, scheme, valid, parent FROM {domain} WHERE valid = 1 ORDER BY sitename ASC';
+    $result = db_query($sql);
 
     // Capture in an array of objects for ease of processing.
     $domains = array();
     while ($data = db_fetch_object($result)) {
       $domains[$data->domain_id] = array(
-        'name' => $data->sitename,
+        'domain_id' => $data->domain_id,
+        'sitename' => $data->sitename,
+        'subdomain' => $data->subdomain,
+        'scheme' => $data->scheme,
         'valid' => $data->valid,
         'parent' => $data->parent,
       );
@@ -235,21 +247,6 @@ function _domain_relationships_tree_get_ancestors($tree, $id) {
     }
   }
   return FALSE;
-}
-
-/**
- * Return all active and valid domains that can possibly be parents
- * to other domains and a placeholder for no domain parent.
- *
- * @return
- *   array
- */
-function domain_relationships_all_active_domains() {
-  $domains = domain_domains();
-  foreach ($domains as $domain) {
-    $active_domains[$domain['domain_id']] = theme('domain_relationships_domain_select_list', $domain);
-  }
-  return $active_domains;
 }
 
 /**
@@ -322,7 +319,7 @@ function domain_relationships_options_list($valid = FALSE) {
  * @return
  *   array
  */
-function _domain_relationships_options_list_indent($tree, $valid = FALSE, $indent = 0) {
+function _domain_relationships_options_list_indent($tree, $valid = FALSE, $display_type = 'default', $indent = 0) {
   $indented = array();
 
   foreach ($tree as $key => $values) {
@@ -330,10 +327,13 @@ function _domain_relationships_options_list_indent($tree, $valid = FALSE, $inden
       if ($key == 0) {
         $key = -1;
       }
-      $indented[$key] = str_repeat('&nbsp;', $indent * 3) . $values['name'];
-      $children = _domain_relationships_options_list_indent($values['children'], $valid, $indent + 1);
-      foreach ($children as $sub_key => $sub_value) {
-        $indented[$sub_key] = $sub_value;
+
+      $indented[$key] = _domain_relationships_options_list_theme($values, $indent, $display_type);
+      if (!empty($values['children'])) {
+        $children = _domain_relationships_options_list_indent($values['children'], $valid, $display_type, $indent + 1);
+        foreach ($children as $sub_key => $sub_value) {
+          $indented[$sub_key] = $sub_value;
+        }
       }
     }
   }
@@ -342,16 +342,47 @@ function _domain_relationships_options_list_indent($tree, $valid = FALSE, $inden
 }
 
 /**
+ * Theme domain listing according to the field type
+ * @param array
+ *  $domain
+ * @param int
+ *  $indent
+ * @param string
+ *  $display_type form api field type, defaults to 'default'
+ */
+function _domain_relationships_options_list_theme($domain, $indent = 0, $display_type = 'default') {
+  switch ($display_type) {
+    case 'checkbox':
+    case 'checkboxes':
+      return theme('domain_relationships_domain_checkboxes', $domain, $indent);
+      break;
+
+    case 'select':
+      return theme('domain_relationships_domain_select', $domain, $indent);
+      break;
+
+    default:
+      return theme('domain_relationships_domain_default', $domain, $indent);
+      break;
+  }
+}
+
+/**
  * Implementation of hook_theme().
  */
 function domain_relationships_theme() {
   return array(
-    'domain_relationships_domain_select_list' => array(
-      'arguments' => array('domain' => NULL, 'level' => NULL, 'subdomain' => NULL),
+    'domain_relationships_domain_select' => array(
+      'arguments' => array('domain' => NULL, 'level' => NULL),
       'file' => 'domain_relationships.theme.inc',
     ),
-    'domain_relationships_domain_checkbox' => array(
-      'arguments' => array('form' => NULL),
+    'domain_relationships_domain_checkboxes' => array(
+      'arguments' => array('domain' => NULL, 'level' => NULL),
+      'file' => 'domain_relationships.theme.inc',
+    ),
+    'domain_relationships_domain_default' => array(
+      'arguments' => array('domain' => NULL, 'level' => NULL),
+      'file' => 'domain_relationships.theme.inc',
     )
   );
 }

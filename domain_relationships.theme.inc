@@ -1,5 +1,5 @@
 <?php
-// $Id$
+// $Id: domain_relationships.theme.inc,v 1.1.2.1 2009/09/28 18:43:44 nonsie Exp $
 
 /**
  * @file
@@ -9,20 +9,20 @@
 /**
  * Theme individual domain listing used in select elements
  */
-function theme_domain_relationships_domain_select_list($domain, $level = 0, $show_subdomain = FALSE) {
-  if ($show_subdomain) {
-    return str_repeat('-', $level) . $domain['sitename'] .'('. $domain['subdomain'] .')';
-  }
-  else {
-    return str_repeat('-', $level) . $domain['sitename'];
-  }
+function theme_domain_relationships_domain_select($domain, $level = 0) {
+  return str_repeat('-', $level) . $domain['sitename'];
 }
 
 /**
  * Theme individual checkboxes used in checkbox-lists
  */
-function theme_domain_relationships_domain_checkbox($element) {
-  $element['#title'] = str_repeat('&nbsp;', $element['#indent'] * 3) . $element['#title'];
-  $output = theme('checkbox', $element);
-  return $output;
+function theme_domain_relationships_domain_checkboxes($domain, $level = 0) {
+  return str_repeat('&nbsp;', $level) . $domain['sitename'];
+}
+
+/**
+ * Theme individual domain listing used in elements other than checkbox/select
+ */
+function theme_domain_relationships_domain_default($domain, $level = 0) {
+  return str_repeat('&nbsp;', $level) . $domain['sitename'];
 }
