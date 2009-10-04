@@ -179,8 +179,12 @@ function _domain_relationships_tree($rebuild = FALSE) {
     }
   }
   if (empty($tree) || $rebuild) {
-    $sql = 'SELECT domain_id, subdomain, sitename, scheme, valid, parent FROM {domain} ORDER BY sitename ASC';
-    if ($only_valid) $sql = 'SELECT domain_id, subdomain, sitename, scheme, valid, parent FROM {domain} WHERE valid = 1 ORDER BY sitename ASC';
+    if ($only_valid) {
+      $sql = 'SELECT domain_id, subdomain, sitename, scheme, valid, parent FROM {domain} WHERE valid = 1 ORDER BY sitename ASC';
+    }
+    else {
+      $sql = 'SELECT domain_id, subdomain, sitename, scheme, valid, parent FROM {domain} ORDER BY sitename ASC';
+    }
     $result = db_query($sql);
 
     // Capture in an array of objects for ease of processing.
